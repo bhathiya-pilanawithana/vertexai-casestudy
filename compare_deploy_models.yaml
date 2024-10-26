@@ -1,0 +1,93 @@
+# PIPELINE DEFINITION
+# Name: compare-deploy-models
+# Inputs:
+#    end_point_name: str
+#    model_display_name: str
+components:
+  comp-compare-deploy-models:
+    executorLabel: exec-compare-deploy-models
+    inputDefinitions:
+      parameters:
+        end_point_name:
+          parameterType: STRING
+        model_display_name:
+          parameterType: STRING
+deploymentSpec:
+  executors:
+    exec-compare-deploy-models:
+      container:
+        args:
+        - --executor_input
+        - '{{$}}'
+        - --function_to_execute
+        - compare_deploy_models
+        command:
+        - sh
+        - -c
+        - "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip ||\
+          \ python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1\
+          \ python3 -m pip install --quiet --no-warn-script-location 'kfp==2.5.0'\
+          \ '--no-deps' 'typing-extensions>=3.7.4,<5; python_version<\"3.9\"' && \"\
+          $0\" \"$@\"\n"
+        - sh
+        - -ec
+        - 'program_path=$(mktemp -d)
+
+
+          printf "%s" "$0" > "$program_path/ephemeral_component.py"
+
+          _KFP_RUNTIME=true python3 -m kfp.dsl.executor_main                         --component_module_path                         "$program_path/ephemeral_component.py"                         "$@"
+
+          '
+        - "\nimport kfp\nfrom kfp import dsl\nfrom kfp.dsl import *\nfrom typing import\
+          \ *\n\ndef compare_deploy_models(model_display_name: str, \n           \
+          \               end_point_name: str):\n\n    from google.cloud import storage\n\
+          \    import pandas as pd\n    import xgboost as xgb\n    from sklearn.metrics\
+          \ import mean_squared_error\n    from sklearn.model_selection import train_test_split\n\
+          \    import os\n\n    storage_client = storage.Client()\n    bucket = storage_client.bucket(BUCKET)\n\
+          \n    models = aiplatform.Model.list(filter=f\"display_name={model_display_name}\"\
+          )\n\n    blob = bucket.blob(os.path.join(models[0].uri, 'model.bst').replace(\"\
+          gs://\",\"\").replace(f\"{BUCKET}/\",\"\"))\n    blob.download_to_filename(\"\
+          model1.bst\")\n\n    blob = bucket.blob(os.path.join(models[1].uri, 'model.bst').replace(\"\
+          gs://\",\"\").replace(f\"{BUCKET}/\",\"\"))\n    blob.download_to_filename(\"\
+          model2.bst\")\n\n    model_xgb_1 = xgb.Booster()\n    model_xgb_1.load_model(\"\
+          model1.bst\")\n\n    model_xgb_2 = xgb.Booster()\n    model_xgb_2.load_model(\"\
+          model2.bst\")\n\n    #For the tesing of the two models, the same training\
+          \ set is used.\n    #This is fundamentaly incorrect, but used to save time.\n\
+          \    #The correct way would be to use a seperate test set and \n    #input\
+          \ it to the pipeline component.\n    storage_client = storage.Client()\n\
+          \    blob = bucket.blob(\"boston_housing.csv\")\n    blob.download_to_filename(\"\
+          boston_housing.csv\")\n    data = pd.read_csv(\"boston_housing.csv\")\n\
+          \    y = data.pop(\"MEDV\")\n    X = data\n\n    mmse_val1 = mean_squared_error(y,\
+          \ model_xgb_1.predict(X))\n    mmse_val2 = mean_squared_error(y, model_xgb_2.predict(X))\n\
+          \n    if mmse_val1>mmse_val2 :\n        endpoint = aiplatform.Endpoint.list(filter=f\"\
+          display_name={end_point_name}\")[0]\n        response = endpoint.deploy(model=models[0],\n\
+          \                                   deployed_model_display_name=\"example_\"\
+          ,\n                                   machine_type=\"n1-standard-4\")\n\n"
+        image: us-docker.pkg.dev/vertex-ai/training/xgboost-cpu.1-1:latest
+pipelineInfo:
+  name: compare-deploy-models
+root:
+  dag:
+    tasks:
+      compare-deploy-models:
+        cachingOptions:
+          enableCache: true
+        componentRef:
+          name: comp-compare-deploy-models
+        inputs:
+          parameters:
+            end_point_name:
+              componentInputParameter: end_point_name
+            model_display_name:
+              componentInputParameter: model_display_name
+        taskInfo:
+          name: compare-deploy-models
+  inputDefinitions:
+    parameters:
+      end_point_name:
+        parameterType: STRING
+      model_display_name:
+        parameterType: STRING
+schemaVersion: 2.1.0
+sdkVersion: kfp-2.5.0
