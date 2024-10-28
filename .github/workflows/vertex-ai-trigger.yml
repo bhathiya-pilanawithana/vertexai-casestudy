@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - master
+      # Can easily make this to trigger on a single file using a path filter. For convenience at
+      # tesing time it is kept as any push to master branch.
 
 jobs:
   publish-message:
