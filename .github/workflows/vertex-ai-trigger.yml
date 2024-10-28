@@ -22,4 +22,5 @@ jobs:
         gcloud pubsub topics publish pipeline-trigger \
           --message '{
             "project_id": "timestack-casestudy-bhathiya"
+            "region": "empty"
           }'
