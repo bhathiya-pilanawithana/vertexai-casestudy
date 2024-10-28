@@ -4,7 +4,7 @@ name: Trigger Vertex AI Pipeline
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   trigger-pipeline:
