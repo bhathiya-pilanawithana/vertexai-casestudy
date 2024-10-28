@@ -7,33 +7,19 @@ on:
       - master
 
 jobs:
-  trigger-pipeline:
+  publish-message:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
     - name: Set up Google Cloud SDK
       uses: google-github-actions/setup-gcloud@v1
       with:
-        service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
         project_id: timestack-casestudy-bhathiya
+        service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
-    - name: Trigger Vertex AI Pipeline
+    - name: Publish message to Pub/Sub
       run: |
-        PIPELINE_NAME="cicd-pipeline-compare-deploy"
-        REGION="us-central1"
-        GCS_LOCATION="gs://timestack-casestudy-bhathiya-buckt/pipeline_root_houseprice/compare_deploy_models.yaml" 
-
-        # Run the Vertex AI pipeline
-        gcloud ai pipelines run \
-          --region=$REGION \
-          --project=timestack-casestudy-bhathiya \
-          --display-name=$PIPELINE_NAME \
-          --pipeline-spec-path=$GCS_LOCATION \
-          --parameters model_display_name="xgboost_best_model" end_point_name="xgboost_model_endpoint"
-
-    - name: Confirm Run Status
-      run: |
-        echo "Vertex AI pipeline triggered successfully."
+        gcloud pubsub topics publish vertex-pipeline-trigger \
+          --message '{
+            "project_id": "timestack-casestudy-bhathiya"
+          }'
