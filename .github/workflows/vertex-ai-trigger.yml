@@ -19,7 +19,7 @@ jobs:
 
     - name: Publish message to Pub/Sub
       run: |
-        gcloud pubsub topics publish vertex-pipeline-trigger \
+        gcloud pubsub topics publish pipeline-trigger \
           --message '{
             "project_id": "timestack-casestudy-bhathiya"
           }'
